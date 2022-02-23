@@ -44,6 +44,7 @@ extern const char* const kDDASLDDLogValue;
  * you may choose to use a file logger and a tty logger.
  **/
 API_DEPRECATED("Use DDOSLogger instead", macosx(10.4,10.12), ios(2.0,10.0), watchos(2.0,3.0), tvos(9.0,10.0))
+// Comment:Core Apple System Log 系统日志
 @interface DDASLLogger : DDAbstractLogger <DDLogger>
 
 /**

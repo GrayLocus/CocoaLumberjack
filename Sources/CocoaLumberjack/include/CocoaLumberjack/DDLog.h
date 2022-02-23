@@ -209,13 +209,14 @@ FOUNDATION_EXTERN NSString * __nullable DDExtractFileNameWithoutExtension(const 
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLog
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  *  The main class, exposes all logging mechanisms, loggers, ...
  *  For most of the users, this class is hidden behind the logging functions like `DDLogInfo`
  */
+// Comment:Core 对外暴露的核心类
 @interface DDLog : NSObject
 
 /**
@@ -562,7 +563,7 @@ FOUNDATION_EXTERN NSString * __nullable DDExtractFileNameWithoutExtension(const 
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLogger
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -570,6 +571,7 @@ FOUNDATION_EXTERN NSString * __nullable DDExtractFileNameWithoutExtension(const 
  *  Basically, it can log messages, store a logFormatter plus a bunch of optional behaviors.
  *  (i.e. flush, get its loggerQueue, get its name, ...
  */
+// Comment:Core Logger 抽象接口，依赖 DDLogFromatter
 @protocol DDLogger <NSObject>
 
 /**
@@ -630,6 +632,7 @@ FOUNDATION_EXTERN NSString * __nullable DDExtractFileNameWithoutExtension(const 
  * Note that DDLog's flushLog method is invoked automatically when the application quits,
  * and it may be also invoked manually by the developer prior to application crashes, or other such reasons.
  **/
+// Comment:Core 将 IO 缓冲中的日志输出，清空缓冲
 - (void)flush;
 
 /**
@@ -650,12 +653,13 @@ FOUNDATION_EXTERN NSString * __nullable DDExtractFileNameWithoutExtension(const 
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLogFormatter
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  *  This protocol describes the behavior of a log formatter
  */
+// Comment:Core 负责格式化 DDLogMessage，抽象接口
 @protocol DDLogFormatter <NSObject>
 @required
 
@@ -705,7 +709,7 @@ FOUNDATION_EXTERN NSString * __nullable DDExtractFileNameWithoutExtension(const 
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDRegisteredDynamicLogging
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -741,7 +745,7 @@ FOUNDATION_EXTERN NSString * __nullable DDExtractFileNameWithoutExtension(const 
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLogMessage
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifndef NS_DESIGNATED_INITIALIZER
@@ -770,17 +774,18 @@ typedef NS_OPTIONS(NSInteger, DDLogMessageOptions){
  * The `DDLogMessage` class encapsulates information about the log message.
  * If you write custom loggers or formatters, you will be dealing with objects of this class.
  **/
+// Comment:Core 消息结构封装对象
 @interface DDLogMessage : NSObject <NSCopying>
 {
     // Direct accessors to be used only for performance
     @public
-    NSString *_message;
-    DDLogLevel _level;
-    DDLogFlag _flag;
-    NSInteger _context;
-    NSString *_file;
-    NSString *_fileName;
-    NSString *_function;
+    NSString *_message; // 消息内容
+    DDLogLevel _level; // 级别，All/Verbose/Debug/Info/Warning/Error
+    DDLogFlag _flag; // 标志，与级别相类似，2 者相与，共同作用控制日志的输出
+    NSInteger _context; // 日志上下文
+    NSString *_file;  // 日志点所在文件
+    NSString *_fileName; // 日志点所在文件
+    NSString *_function; // 日志点所在函数
     NSUInteger _line;
     #if DD_LEGACY_MESSAGE_TAG
     id _tag __attribute__((deprecated("Use _representedObject instead", "_representedObject")));;
@@ -788,10 +793,10 @@ typedef NS_OPTIONS(NSInteger, DDLogMessageOptions){
     id _representedObject;
     DDLogMessageOptions _options;
     NSDate * _timestamp;
-    NSString *_threadID;
-    NSString *_threadName;
-    NSString *_queueLabel;
-    NSUInteger _qos;
+    NSString *_threadID; // 线程 ID
+    NSString *_threadName; // 线程名
+    NSString *_queueLabel; // 执行 queue 的标签
+    NSUInteger _qos; //
 }
 
 /**
@@ -866,7 +871,7 @@ typedef NS_OPTIONS(NSInteger, DDLogMessageOptions){
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDAbstractLogger
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -885,6 +890,8 @@ typedef NS_OPTIONS(NSInteger, DDLogMessageOptions){
  * Logger implementations may simply extend this class,
  * and they can ACCESS THE FORMATTER VARIABLE DIRECTLY from within their `logMessage:` method!
  **/
+
+// Comment:Core 实现 DDLogger 接口的核心基类
 @interface DDAbstractLogger : NSObject <DDLogger>
 {
     // Direct accessors to be used only for performance
@@ -911,7 +918,7 @@ typedef NS_OPTIONS(NSInteger, DDLogMessageOptions){
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLoggerInformation
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @interface DDLoggerInformation : NSObject

@@ -58,6 +58,8 @@ NS_ASSUME_NONNULL_BEGIN
  * However, if you instead choose to use file logging (for faster performance),
  * you may choose to use only a file logger and a tty logger.
  **/
+
+// Comment:Core IDE TTY 终端打印
 @interface DDTTYLogger : DDAbstractLogger <DDLogger>
 
 /**

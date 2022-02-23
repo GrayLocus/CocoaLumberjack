@@ -71,6 +71,8 @@ extern unsigned long long const kDDDefaultLogFilesDiskQuota;
  *  The `DDLogFileInfo` class is documented below, and provides a handy wrapper that
  *  gives you easy access to various file attributes such as the creation date or the file size.
  */
+
+// Comment:Core 文件日志管理器
 @protocol DDLogFileManager <NSObject>
 @required
 
@@ -329,6 +331,7 @@ extern unsigned long long const kDDDefaultLogFilesDiskQuota;
 /**
  *  The standard implementation for a file logger
  */
+// Comment:Core 文件日志
 @interface DDFileLogger : DDAbstractLogger <DDLogger>
 
 /**

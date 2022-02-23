@@ -51,7 +51,7 @@ unsigned long long const kDDDefaultLogFilesDiskQuota   = 20 * 1024 * 1024; // 20
 NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLogFileManagerDefault
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @interface DDLogFileManagerDefault () {
@@ -116,6 +116,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
 
 #endif
 
+// Comment: 文件磁盘空间/个数配置变化时，触发文件删除
 - (void)deleteOldFilesForConfigurationChange {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         @autoreleasepool {
@@ -142,6 +143,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
 }
 
 #if TARGET_OS_IPHONE
+// Comment:Todo 文件保护
 - (NSFileProtectionType)logFileProtection {
     if (_defaultFileProtectionLevel.length > 0) {
         return _defaultFileProtectionLevel;
@@ -163,6 +165,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
  * log output, since the files we're deleting are all archived and not in use, therefore this method is called on a
  * background queue.
  **/
+// Comment: 检查文件个数是否超出最大文件数/最大磁盘空间
 - (void)deleteOldLogFiles {
     NSLogVerbose(@"DDLogFileManagerDefault: deleteOldLogFiles");
 
@@ -235,6 +238,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
  * Returns the path to the default logs directory.
  * If the logs directory doesn't exist, this method automatically creates it.
  **/
+// Comment:Core 创建默认的日志文件目录
 - (NSString *)defaultLogsDirectory {
 
 #if TARGET_OS_IPHONE
@@ -284,6 +288,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
     return _fileDateFormatter;
 }
 
+// Comment:Core 获取日志文件路径
 - (NSArray *)unsortedLogFilePaths {
     NSString *logsDirectory = [self logsDirectory];
     NSArray *fileNames = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:logsDirectory error:nil];
@@ -404,6 +409,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //if you change newLogFileName , then  change isLogFile method also accordingly
+// Comment:Core 创建文件名，$(appName) @(Date).log
 - (NSString *)newLogFileName {
     NSString *appName = [self applicationName];
 
@@ -431,11 +437,14 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
     return [fileHeaderStr dataUsingEncoding:NSUTF8StringEncoding];
 }
 
+// Comment:Core 创建日志文件
 - (NSString *)createNewLogFileWithError:(NSError *__autoreleasing  _Nullable *)error {
     static NSUInteger MAX_ALLOWED_ERROR = 5;
 
+    // base 文件名 $(appName) @(Date).log
     NSString *fileName = [self newLogFileName];
     NSString *logsDirectory = [self logsDirectory];
+    // Comment: 文件 header
     NSData *fileHeader = [self logFileHeaderData] ?: [NSData new];
 
     NSString *baseName = nil;
@@ -445,6 +454,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
     NSError *lastCriticalError;
 
     if (error) *error = nil;
+    // Comment:Core 多次尝试直到创建文件成功，文件名 base + index，index 递增尝试，直到找到为占用的 index 序号
     do {
         if (criticalErrors >= MAX_ALLOWED_ERROR) {
             NSLogError(@"DDLogFileManagerDefault: Bailing file creation, encountered %ld errors.",
@@ -471,8 +481,10 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
         NSString *filePath = [logsDirectory stringByAppendingPathComponent:actualFileName];
 
         __autoreleasing NSError *currentError = nil;
+        // Comment: 写入文件 header data
         BOOL success = [fileHeader writeToFile:filePath options:NSDataWritingAtomic error:&currentError];
 
+        // Comment:Todo TARGET_OS_MACCATALYST 是个服务
 #if TARGET_OS_IPHONE && !TARGET_OS_MACCATALYST
         if (success) {
             // When creating log file on iOS we're setting NSFileProtectionKey attribute to NSFileProtectionCompleteUnlessOpen.
@@ -487,6 +499,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
         }
 #endif
 
+        // Comment: 删除文件
         if (success) {
             NSLogVerbose(@"DDLogFileManagerDefault: Created new log file: %@", actualFileName);
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -530,7 +543,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLogFileFormatterDefault
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @interface DDLogFileFormatterDefault () {
@@ -570,7 +583,7 @@ NSTimeInterval     const kDDRollingLeeway              = 1.0;              // 1s
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDFileLogger
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @interface DDFileLogger () {
@@ -1266,6 +1279,7 @@ static int exception_count = 0;
 
 @implementation DDFileLogger (Internal)
 
+// Comment:Core 记录 Data
 - (void)logData:(NSData *)data {
     // This method is public.
     // We need to execute the rolling on our logging thread/queue.
@@ -1398,7 +1412,7 @@ static int exception_count = 0;
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLogFileInfo
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static NSString * const kDDXAttrArchivedName = @"lumberjack.log.archived";

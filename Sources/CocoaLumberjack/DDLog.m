@@ -54,8 +54,12 @@
 // The logging queue sets a flag via dispatch_queue_set_specific using this key.
 // We can check for this key via dispatch_get_specific() to see if we're on the "global logging queue".
 
+// Comment:Core loggingQueue 的标识，可以通过 dispatch_get_specific() 获取是否在 logggingQueue 上
 static void *const GlobalLoggingQueueIdentityKey = (void *)&GlobalLoggingQueueIdentityKey;
 
+#pragma mark - DDLoggerNode
+
+// Comment:对 DDLogger 对象的封装，指定了执行的 gcd queue
 @interface DDLoggerNode : NSObject
 {
     // Direct accessors to be used only for performance
@@ -77,7 +81,7 @@ static void *const GlobalLoggingQueueIdentityKey = (void *)&GlobalLoggingQueueId
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLog
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @interface DDLog ()
@@ -140,6 +144,7 @@ static NSUInteger _numProcessors;
         // Figure out how many processors are available.
         // This may be used later for an optimization on uniprocessor machines.
 
+        // 逻辑 CPU 个数，同：sysctl -n hw.ncpu
         _numProcessors = MAX([NSProcessInfo processInfo].processorCount, (NSUInteger) 1);
 
         NSLogDebug(@"DDLog: numProcessors = %@", @(_numProcessors));
@@ -289,6 +294,10 @@ static NSUInteger _numProcessors;
 #pragma mark - Master Logging
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Comment:Core 实例方法会将当前调用打包成一个 block 任务，丢到 loggingQueue 里处理，再将消息逐个 投递到 DDLogger数组里的 logger所在的 queue 里执行输出
+// 注意这里的设计思路：
+// 1.利用 block 对logMessage 封装，丢入串行队列排队
+// 2.因为需要将 LogMessage 逐个输出到指定的 Logger，串行队列里对任务是并发还是串行做出判断后，再次进行具体执行队列的派发
 - (void)queueLogMessage:(DDLogMessage *)logMessage asynchronously:(BOOL)asyncFlag {
     // We have a tricky situation here...
     //
@@ -491,6 +500,7 @@ static NSUInteger _numProcessors;
     [self.sharedInstance flushLog];
 }
 
+// Comment: 将日志缓冲
 - (void)flushLog {
     NSAssert(!dispatch_get_specific(GlobalLoggingQueueIdentityKey),
              @"This method shouldn't be run on the logging thread/queue that make flush fast enough");
@@ -677,6 +687,7 @@ static NSUInteger _numProcessors;
              @"This method should only be run on the logging thread/queue");
 
     dispatch_queue_t loggerQueue = NULL;
+    // Comment: 如果 Logger 指定了 queue，则用其指定的 queue，否则为其创建一个 queue
     if ([logger respondsToSelector:@selector(loggerQueue)]) {
         // Logger may be providing its own queue
         loggerQueue = logger.loggerQueue;
@@ -694,9 +705,11 @@ static NSUInteger _numProcessors;
         loggerQueue = dispatch_queue_create(loggerQueueName, NULL);
     }
 
+    // Comment: 将 DDLogger 和其运行的 loggerQueue 封装起来
     DDLoggerNode *loggerNode = [DDLoggerNode nodeWithLogger:logger loggerQueue:loggerQueue level:level];
     [self._loggers addObject:loggerNode];
 
+    // 遵循 KVO Observer 设计模式，通知到 DDLogger
     if ([logger respondsToSelector:@selector(didAddLoggerInQueue:)]) {
         dispatch_async(loggerNode->_loggerQueue, ^{ @autoreleasepool {
             [logger didAddLoggerInQueue:loggerNode->_loggerQueue];
@@ -790,6 +803,7 @@ static NSUInteger _numProcessors;
     NSAssert(dispatch_get_specific(GlobalLoggingQueueIdentityKey),
              @"This method should only be run on the logging thread/queue");
 
+    // Comment:Core 逻辑 CPU 个数大于 1，并发执行 logger
     if (_numProcessors > 1) {
         // Execute each logger concurrently, each within its own queue.
         // All blocks are added to same group.
@@ -801,6 +815,7 @@ static NSUInteger _numProcessors;
         for (DDLoggerNode *loggerNode in self._loggers) {
             // skip the loggers that shouldn't write this message based on the log level
 
+            // Comment: log 的开关通过 flag & level 来控制，level 作为总开关
             if (!(logMessage->_flag & loggerNode->_level)) {
                 continue;
             }
@@ -810,6 +825,7 @@ static NSUInteger _numProcessors;
             } });
         }
 
+        // 等待所有 Logger 输出完成
         dispatch_group_wait(_loggingGroup, DISPATCH_TIME_FOREVER);
     } else {
         // Execute each logger serially, each within its own queue.
@@ -932,7 +948,7 @@ NSString * __nullable DDExtractFileNameWithoutExtension(const char *filePath, BO
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLoggerNode
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @implementation DDLoggerNode
@@ -968,7 +984,7 @@ NSString * __nullable DDExtractFileNameWithoutExtension(const char *filePath, BO
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDLogMessage
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @implementation DDLogMessage
@@ -1072,6 +1088,7 @@ NS_INLINE BOOL _nullable_strings_equal(NSString* _Nullable lhs, NSString* _Nulla
     }
 }
 
+// Comment:Todo DDLogMessage 的 hash 值，各字段 hash 取反
 - (NSUInteger)hash {
     // Subclasses of NSObject should not call [super hash] here.
     // See https://stackoverflow.com/questions/36593038/confused-about-the-default-isequal-and-hash-implements
@@ -1126,7 +1143,7 @@ NS_INLINE BOOL _nullable_strings_equal(NSString* _Nullable lhs, NSString* _Nulla
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark -
+#pragma mark - DDAbstractLogger
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 @implementation DDAbstractLogger
@@ -1155,9 +1172,11 @@ NS_INLINE BOOL _nullable_strings_equal(NSString* _Nullable lhs, NSString* _Nulla
         //
         // This is used primarily for thread-safety assertions (via the isOnInternalLoggerQueue method below).
 
+        
         void *key = (__bridge void *)self;
         void *nonNullValue = (__bridge void *)self;
-
+        // Comment:Core key 只是用来比较，所以可以用一个静态变量的指针作为 key，这样可以保证其唯一性，但是不推荐使用一个常量字符串的指针
+        // 这里使用 self 作为 key
         dispatch_queue_set_specific(_loggerQueue, key, nonNullValue, NULL);
     }
 
@@ -1178,6 +1197,9 @@ NS_INLINE BOOL _nullable_strings_equal(NSString* _Nullable lhs, NSString* _Nulla
     // Override me
 }
 
+// Comment:Core 对 DDLogger 成员 logFormatter 的访问，需要考虑并发安全，又要考虑性能
+// 这里的实现方式：
+//
 - (id <DDLogFormatter>)logFormatter {
     // This method must be thread safe and intuitive.
     // Therefore if somebody executes the following code:
@@ -1202,6 +1224,8 @@ NS_INLINE BOOL _nullable_strings_equal(NSString* _Nullable lhs, NSString* _Nulla
     //
     // Furthermore, consider the following code:
     //
+    // Comment:Core 线程安全例子
+    //
     // DDLogVerbose(@"log msg 1");
     // DDLogVerbose(@"log msg 2");
     // [logger setFormatter:myFormatter];
@@ -1211,15 +1235,19 @@ NS_INLINE BOOL _nullable_strings_equal(NSString* _Nullable lhs, NSString* _Nulla
     // This must remain true even when using asynchronous logging.
     // We must keep in mind the various queue's that are in play here:
     //
+    // Comment:Core 私有的内部队列，执行 logMessage 方法，队列上任务都是从 global loggingQueue 同步过来
     // loggerQueue : Our own private internal queue that the logMessage method runs on.
     //               Operations are added to this queue from the global loggingQueue.
     //
+    // Comment:Core 对外的全局队列，任务先添加进该队列，后同步至私有的内部队列
     // globalLoggingQueue : The queue that all log messages go through before they arrive in our loggerQueue.
     //
     // All log statements go through the serial globalLoggingQueue before they arrive at our loggerQueue.
     // Thus this method also goes through the serial globalLoggingQueue to ensure intuitive operation.
 
     // IMPORTANT NOTE:
+    //
+    // Comment:Core DDLogger 内部对 formatter 的访问必须通过 ivar 成员变量的方式，不能通过dot 方式或者方法调用
     //
     // Methods within the DDLogger implementation MUST access the formatter ivar directly.
     // This method is designed explicitly for external access.
@@ -1228,6 +1256,9 @@ NS_INLINE BOOL _nullable_strings_equal(NSString* _Nullable lhs, NSString* _Nulla
     // This is the intended result. Fix it by accessing the ivar directly.
     // Great strides have been take to ensure this is safe to do. Plus it's MUCH faster.
 
+    // Comment:Core 线程安全检查，区分为 DDAbstractLogger 的 loggerQueue 和 DDLog 的 loggingQueue
+    // 真正执行日志输出 logMessage: 方法的，则是对应的 DDLogger 内部指定的 queue
+    
     NSAssert(![self isOnGlobalLoggingQueue], @"Core architecture requirement failure");
     NSAssert(![self isOnInternalLoggerQueue], @"MUST access ivar directly, NOT via self.* syntax.");
 
@@ -1235,6 +1266,9 @@ NS_INLINE BOOL _nullable_strings_equal(NSString* _Nullable lhs, NSString* _Nulla
 
     __block id <DDLogFormatter> result;
 
+    // Comment:Core DDLogger 内部对 formatter 的访问必须通过 ivar 成员变量的方式，不能通过dot 方式或者方法调用
+    // Comment:Core 对_logFormatter 的访问，同步至 DDLog 对外暴露的 loggingQueue，又同步至当前 DDLogger 的 loggerQueue
+    // 且通过成员变量方式获取，避免了上面示例中出现的 logFormatter 不一致的情况
     dispatch_sync(globalLoggingQueue, ^{
         dispatch_sync(self->_loggerQueue, ^{
             result = self->_logFormatter;

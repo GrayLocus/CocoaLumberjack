@@ -48,6 +48,7 @@ API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0))
  If both parameters are nil, this method will return a logger configured with `OS_LOG_DEFAULT`.
  If both parameters are non-nil, it will return a logger configured with `os_log_create(subsystem, category)`
  */
+// Comment:Todo subsystem 和 category
 - (instancetype)initWithSubsystem:(nullable NSString *)subsystem category:(nullable NSString *)category NS_DESIGNATED_INITIALIZER;
 
 @end

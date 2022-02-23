@@ -71,6 +71,7 @@ static DDOSLogger *sharedInstance;
     if (self.subsystem == nil || self.category == nil) {
         return OS_LOG_DEFAULT;
     }
+    // Comment: _os_log_create 
     return os_log_create(self.subsystem.UTF8String, self.category.UTF8String);
 }
 
@@ -100,15 +101,18 @@ static DDOSLogger *sharedInstance;
             __auto_type logger = [self logger];
             switch (logMessage->_flag) {
                 case DDLogFlagError  :
+                    // _os_log_error_impl
                     os_log_error(logger, "%{public}s", msg);
                     break;
                 case DDLogFlagWarning:
                 case DDLogFlagInfo   :
+                    // _os_log_impl
                     os_log_info(logger, "%{public}s", msg);
                     break;
                 case DDLogFlagDebug  :
                 case DDLogFlagVerbose:
                 default              :
+                    // Comment:Core 最终调用 usr/include/os/log.h _os_log_debug_impl
                     os_log_debug(logger, "%{public}s", msg);
                     break;
             }
